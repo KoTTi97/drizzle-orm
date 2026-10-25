@@ -25,6 +25,8 @@ const skip = new Set([
 	'having',
 	'select count()',
 	'with ... select',
+	// Keep the combined case within this backend's existing CTE/INSERT-SELECT exclusion boundary.
+	'recursive CTE hierarchy and mixed WITH list',
 	'insert via db.execute w/ query builder',
 	'insert via db.execute + select via db.execute',
 	'select with group by as sql',

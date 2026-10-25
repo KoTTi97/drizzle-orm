@@ -49,6 +49,7 @@ const omit = new Set([
 	'with ... delete',
 	'with ... update',
 	'with ... select',
+	'recursive CTE hierarchy and mixed WITH list',
 
 	// to redefine in this file
 	'utc config for datetime',

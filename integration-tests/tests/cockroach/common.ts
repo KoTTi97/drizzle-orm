@@ -1912,6 +1912,34 @@ export function tests(getDb: () => CockroachDatabase<any>) {
 			]);
 		});
 
+		test('recursive CTE hierarchy and mixed WITH list', async ({ cockroach: { db } }) => {
+			const employees = cockroachTable('recursive_cte_employees', {
+				id: int4('employee_id').primaryKey(),
+				managerId: int4('manager_id'),
+			});
+			await db.execute(sql`create table ${employees} (employee_id integer primary key, manager_id integer)`);
+			try {
+				await db.insert(employees).values([
+					{ id: 1, managerId: null },
+					{ id: 2, managerId: 1 },
+					{ id: 3, managerId: 2 },
+				]);
+				const fields = { id: employees.id, level: sql<number>`0`.mapWith(Number).as('depth') };
+				const cte = db.$withRecursive('hierarchy', fields).as((qb, self) =>
+					qb.select(fields).from(employees).where(isNull(employees.managerId)).unionAll(
+						qb.select({ id: employees.id, level: sql<number>`${self.level} + 1`.as('depth') })
+							.from(employees).innerJoin(self, eq(employees.managerId, self.id)),
+					)
+				);
+				const expected = [{ id: 1, level: 0 }, { id: 2, level: 1 }, { id: 3, level: 2 }];
+				expect(await db.with(cte).select().from(cte).orderBy(cte.id)).toEqual(expected);
+				const ordinary = db.$with('ordinary').as(db.select({ id: employees.id }).from(employees));
+				expect(await db.with(ordinary, cte).select().from(cte).orderBy(cte.id)).toEqual(expected);
+			} finally {
+				await db.execute(sql`drop table ${employees}`);
+			}
+		});
+
 		test('with ... select', async ({ cockroach: { db } }) => {
 			await db.insert(orders).values([
 				{ region: 'Europe', product: 'A', amount: 10, quantity: 1 },

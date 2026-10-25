@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import 'dotenv/config';
-import { eq, gt, inArray, lt, sql } from 'drizzle-orm';
+import { eq, gt, inArray, isNull, lt, sql } from 'drizzle-orm';
 import {
 	boolean,
 	decimal,
@@ -298,6 +298,42 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 			{ courseName: 'IT & Software', categoryId: 3 },
 			{ courseName: 'Marketing', categoryId: 4 },
 		]);
+	});
+
+	test('recursive CTE hierarchy and mixed WITH list', async ({ db }) => {
+		const employees = mysqlTable('recursive_cte_employees', {
+			id: int('employee_id').primaryKey(),
+			managerId: int('manager_id'),
+		});
+		await db.execute(sql`create table ${employees} (employee_id integer primary key, manager_id integer)`);
+		try {
+			await db.insert(employees).values([
+				{ id: 1, managerId: null },
+				{ id: 2, managerId: 1 },
+				{ id: 3, managerId: 2 },
+			]);
+			const fields = { id: employees.id, level: sql<number>`0`.mapWith(Number).as('depth') };
+			const cte = db.$withRecursive('hierarchy', fields).as((qb, self) =>
+				qb.select(fields).from(employees).where(isNull(employees.managerId)).unionAll(
+					qb.select({ id: employees.id, level: sql<number>`${self.level} + 1`.as('depth') })
+						.from(employees).innerJoin(self, eq(employees.managerId, self.id)),
+				)
+			);
+			const expected = [{ id: 1, level: 0 }, { id: 2, level: 1 }, { id: 3, level: 2 }];
+			expect(await db.with(cte).select().from(cte).orderBy(cte.id)).toEqual(expected);
+			const ordinary = db.$with('ordinary').as(db.select({ id: employees.id }).from(employees));
+			expect(await db.with(ordinary, cte).select().from(cte).orderBy(cte.id)).toEqual(expected);
+			await db.insert(employees).select((qb) =>
+				qb.with(cte).select({
+					id: sql<number>`${cte.id} + 10`.as('id'),
+					managerId: sql<number | null>`null`.as('manager_id'),
+				}).from(cte)
+			);
+			expect(await db.select({ id: employees.id }).from(employees).where(gt(employees.id, 10)).orderBy(employees.id))
+				.toEqual([{ id: 11 }, { id: 12 }, { id: 13 }]);
+		} finally {
+			await db.execute(sql`drop table ${employees}`);
+		}
 	});
 
 	test.concurrent('with ... select', async ({ db, push }) => {
