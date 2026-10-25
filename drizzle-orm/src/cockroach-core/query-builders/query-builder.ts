@@ -2,11 +2,12 @@ import type { CockroachDialectConfig } from '~/cockroach-core/dialect.ts';
 import { CockroachDialect } from '~/cockroach-core/dialect.ts';
 import { entityKind, is } from '~/entity.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
+import { getRecursiveSelection } from '~/query-builders/with-recursive.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
-import type { ColumnsSelection, SQL, SQLWrapper } from '~/sql/sql.ts';
+import { type ColumnsSelection, SQL, type SQLWrapper } from '~/sql/sql.ts';
 import { WithSubquery } from '~/subquery.ts';
 import type { CockroachColumn } from '../columns/index.ts';
-import type { WithBuilder } from '../subquery.ts';
+import type { WithBuilder, WithRecursiveBuilder } from '../subquery.ts';
 import { CockroachSelectBuilder } from './select.ts';
 import type { SelectedFields } from './select.types.ts';
 
@@ -42,6 +43,40 @@ export class QueryBuilder {
 					sql,
 					selection ?? ('getSelectedFields' in qb ? qb.getSelectedFields() ?? {} : {}) as SelectedFields,
 					alias,
+					true,
+				),
+				new SelectionProxyHandler({ alias, sqlAliasedBehavior: 'alias', sqlBehavior: 'error' }),
+			) as any;
+		};
+		return { as };
+	};
+
+	/**
+	 * Defines a recursive CTE. With an explicit selection, the `as` callback
+	 * receives a typed self reference as its second argument.
+	 */
+	$withRecursive: WithRecursiveBuilder = (alias: string, selection?: ColumnsSelection) => {
+		const as = (
+			qb:
+				| TypedQueryBuilder<ColumnsSelection | undefined>
+				| SQL
+				| ((qb: QueryBuilder, self: WithSubquery) => TypedQueryBuilder<ColumnsSelection | undefined> | SQL),
+		) => {
+			if (typeof qb === 'function') {
+				const self = new Proxy(
+					new WithSubquery(new SQL([]), selection ?? {}, alias, true, true),
+					new SelectionProxyHandler({ alias, sqlAliasedBehavior: 'alias', sqlBehavior: 'error' }),
+				);
+				qb = qb(this, self);
+			}
+
+			const fields = getRecursiveSelection(qb, selection);
+			return new Proxy(
+				new WithSubquery(
+					qb.getSQL(),
+					fields,
+					alias,
+					true,
 					true,
 				),
 				new SelectionProxyHandler({ alias, sqlAliasedBehavior: 'alias', sqlBehavior: 'error' }),

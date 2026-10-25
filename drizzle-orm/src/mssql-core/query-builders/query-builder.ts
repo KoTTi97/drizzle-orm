@@ -1,9 +1,10 @@
 import { entityKind, is } from '~/entity.ts';
 import { MsSqlDialect, type MsSqlDialectConfig } from '~/mssql-core/dialect.ts';
-import type { WithSubqueryWithSelection } from '~/mssql-core/subquery.ts';
+import type { WithRecursiveBuilder, WithSubqueryWithSelection } from '~/mssql-core/subquery.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
+import { getRecursiveSelection } from '~/query-builders/with-recursive.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
-import type { ColumnsSelection } from '~/sql/sql.ts';
+import { type ColumnsSelection, SQL } from '~/sql/sql.ts';
 import { WithSubquery } from '~/subquery.ts';
 import { MsSqlSelectBuilder } from './select.ts';
 import type { SelectedFields } from './select.types.ts';
@@ -45,6 +46,40 @@ export class QueryBuilder {
 			},
 		};
 	}
+
+	/**
+	 * Defines a recursive CTE. With an explicit selection, the `as` callback
+	 * receives a typed self reference as its second argument.
+	 */
+	$withRecursive: WithRecursiveBuilder = (alias: string, selection?: ColumnsSelection) => {
+		const as = (
+			qb:
+				| TypedQueryBuilder<ColumnsSelection | undefined>
+				| SQL
+				| ((qb: QueryBuilder, self: WithSubquery) => TypedQueryBuilder<ColumnsSelection | undefined> | SQL),
+		) => {
+			if (typeof qb === 'function') {
+				const self = new Proxy(
+					new WithSubquery(new SQL([]), selection ?? {}, alias, true, true),
+					new SelectionProxyHandler({ alias, sqlAliasedBehavior: 'alias', sqlBehavior: 'error' }),
+				);
+				qb = qb(this, self);
+			}
+
+			const fields = getRecursiveSelection(qb, selection);
+			return new Proxy(
+				new WithSubquery(
+					qb.getSQL(),
+					fields,
+					alias,
+					true,
+					true,
+				),
+				new SelectionProxyHandler({ alias, sqlAliasedBehavior: 'alias', sqlBehavior: 'error' }),
+			) as any;
+		};
+		return { as };
+	};
 
 	with(...queries: WithSubquery[]) {
 		const self = this;

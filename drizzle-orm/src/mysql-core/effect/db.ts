@@ -19,7 +19,7 @@ import { MySqlSelectBuilder } from '../query-builders/select.ts';
 import type { SelectedFields } from '../query-builders/select.types.ts';
 import { MySqlUpdateBuilder } from '../query-builders/update.ts';
 import type { MySqlPreparedQueryConfig, MySqlQueryResultHKT, MySqlQueryResultKind } from '../session.ts';
-import type { WithBuilder } from '../subquery.ts';
+import type { WithBuilder, WithRecursiveBuilder } from '../subquery.ts';
 import type { MySqlTable } from '../table.ts';
 import type { MySqlViewBase } from '../view-base.ts';
 import type { MySqlView } from '../view.ts';
@@ -142,6 +142,15 @@ export class MySqlEffectDatabase<
 		};
 		return { as };
 	};
+
+	/**
+	 * Defines a recursive CTE. With an explicit selection, the `as` callback
+	 * receives a typed self reference as its second argument.
+	 * @see QueryBuilder.$withRecursive
+	 */
+	get $withRecursive(): WithRecursiveBuilder {
+		return new QueryBuilder(this.dialect).$withRecursive;
+	}
 
 	$count(
 		source: MySqlTable | MySqlViewBase | SQL | SQLWrapper,

@@ -27,7 +27,7 @@ import type {
 	QueryResultHKT,
 	RawQueryResultKind,
 } from './session.ts';
-import type { WithSubqueryWithSelection } from './subquery.ts';
+import type { WithRecursiveBuilder, WithSubqueryWithSelection } from './subquery.ts';
 import type { MsSqlTable } from './table.ts';
 import type { MsSqlViewBase } from './view-base.ts';
 
@@ -129,6 +129,15 @@ export class MsSqlDatabase<
 				) as WithSubqueryWithSelection<TSelection, TAlias>;
 			},
 		};
+	}
+
+	/**
+	 * Defines a recursive CTE. With an explicit selection, the `as` callback
+	 * receives a typed self reference as its second argument.
+	 * @see QueryBuilder.$withRecursive
+	 */
+	get $withRecursive(): WithRecursiveBuilder {
+		return new QueryBuilder(this.dialect).$withRecursive;
 	}
 
 	$count(

@@ -1,10 +1,11 @@
 import { entityKind, is } from '~/entity.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
+import { getRecursiveSelection } from '~/query-builders/with-recursive.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
-import type { ColumnsSelection, SQL } from '~/sql/sql.ts';
+import { type ColumnsSelection, SQL } from '~/sql/sql.ts';
 import type { SQLiteDialectConfig } from '~/sqlite-core/dialect.ts';
 import { SQLiteDialect } from '~/sqlite-core/dialect.ts';
-import type { WithBuilder } from '~/sqlite-core/subquery.ts';
+import type { WithBuilder, WithRecursiveBuilder } from '~/sqlite-core/subquery.ts';
 import { WithSubquery } from '~/subquery.ts';
 import { SQLiteSelectBuilder } from './select.ts';
 import type { SelectedFields } from './select.types.ts';
@@ -41,6 +42,40 @@ export class QueryBuilder {
 					sql,
 					selection ?? ('getSelectedFields' in qb ? qb.getSelectedFields() ?? {} : {}) as SelectedFields,
 					alias,
+					true,
+				),
+				new SelectionProxyHandler({ alias, sqlAliasedBehavior: 'alias', sqlBehavior: 'error' }),
+			) as any;
+		};
+		return { as };
+	};
+
+	/**
+	 * Defines a recursive CTE. With an explicit selection, the `as` callback
+	 * receives a typed self reference as its second argument.
+	 */
+	$withRecursive: WithRecursiveBuilder = (alias: string, selection?: ColumnsSelection) => {
+		const as = (
+			qb:
+				| TypedQueryBuilder<ColumnsSelection | undefined>
+				| SQL
+				| ((qb: QueryBuilder, self: WithSubquery) => TypedQueryBuilder<ColumnsSelection | undefined> | SQL),
+		) => {
+			if (typeof qb === 'function') {
+				const self = new Proxy(
+					new WithSubquery(new SQL([]), selection ?? {}, alias, true, true),
+					new SelectionProxyHandler({ alias, sqlAliasedBehavior: 'alias', sqlBehavior: 'error' }),
+				);
+				qb = qb(this, self);
+			}
+
+			const fields = getRecursiveSelection(qb, selection);
+			return new Proxy(
+				new WithSubquery(
+					qb.getSQL(),
+					fields,
+					alias,
+					true,
 					true,
 				),
 				new SelectionProxyHandler({ alias, sqlAliasedBehavior: 'alias', sqlBehavior: 'error' }),

@@ -30,7 +30,7 @@ import { RelationalQueryBuilder } from './query-builders/query.ts';
 import { CockroachRaw } from './query-builders/raw.ts';
 import { CockroachRefreshMaterializedView } from './query-builders/refresh-materialized-view.ts';
 import type { SelectedFields } from './query-builders/select.types.ts';
-import type { WithBuilder } from './subquery.ts';
+import type { WithBuilder, WithRecursiveBuilder } from './subquery.ts';
 import type { CockroachViewBase } from './view-base.ts';
 import type { CockroachMaterializedView } from './view.ts';
 
@@ -133,6 +133,15 @@ export class CockroachDatabase<
 		};
 		return { as };
 	};
+
+	/**
+	 * Defines a recursive CTE. With an explicit selection, the `as` callback
+	 * receives a typed self reference as its second argument.
+	 * @see QueryBuilder.$withRecursive
+	 */
+	get $withRecursive(): WithRecursiveBuilder {
+		return new QueryBuilder(this.dialect).$withRecursive;
+	}
 
 	$count(
 		source: CockroachTable | CockroachViewBase | SQL | SQLWrapper,

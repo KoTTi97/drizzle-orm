@@ -29,7 +29,7 @@ import type {
 	SingleStoreTransaction,
 	SingleStoreTransactionConfig,
 } from './session.ts';
-import type { WithBuilder } from './subquery.ts';
+import type { WithBuilder, WithRecursiveBuilder } from './subquery.ts';
 import type { SingleStoreTable } from './table.ts';
 
 export class SingleStoreDatabase<
@@ -143,6 +143,15 @@ export class SingleStoreDatabase<
 		};
 		return { as };
 	};
+
+	/**
+	 * Defines a recursive CTE. With an explicit selection, the `as` callback
+	 * receives a typed self reference as its second argument.
+	 * @see QueryBuilder.$withRecursive
+	 */
+	get $withRecursive(): WithRecursiveBuilder {
+		return new QueryBuilder(this.dialect).$withRecursive;
+	}
 
 	$count(
 		source: SingleStoreTable | SQL | SQLWrapper, // SingleStoreViewBase |

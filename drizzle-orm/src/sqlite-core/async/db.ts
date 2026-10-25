@@ -25,7 +25,7 @@ import type { InferInsertModel, RequiredInsertKeys } from '~/table.ts';
 import type { DrizzleTypeError, IsNever, JoinUnion } from '~/utils.ts';
 import { RelationalQueryBuilder } from '../query-builders/query.ts';
 import type { SelectedFields } from '../query-builders/select.types.ts';
-import type { WithBuilder } from '../subquery.ts';
+import type { WithBuilder, WithRecursiveBuilder } from '../subquery.ts';
 import type { SQLiteViewBase } from '../view-base.ts';
 import { SQLiteAsyncCountBuilder, type SQLiteAsyncCountBuilderKind, SQLiteSyncCountBuilder } from './count.ts';
 import { SQLiteAsyncRelationalQuery, type SQLiteAsyncRelationalQueryHKT, SQLiteSyncRelationalQuery } from './query.ts';
@@ -147,6 +147,15 @@ export class SQLiteAsyncDatabase<
 		};
 		return { as };
 	};
+
+	/**
+	 * Defines a recursive CTE. With an explicit selection, the `as` callback
+	 * receives a typed self reference as its second argument.
+	 * @see QueryBuilder.$withRecursive
+	 */
+	get $withRecursive(): WithRecursiveBuilder {
+		return new QueryBuilder(this.dialect).$withRecursive;
+	}
 
 	$count(
 		source: SQLiteTable | SQLiteViewBase | SQL | SQLWrapper,

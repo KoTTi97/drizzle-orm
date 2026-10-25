@@ -25,6 +25,7 @@ export class Subquery<
 		selectedFields: TSelectedFields;
 		alias: TAlias;
 		isWith: boolean;
+		isRecursive: boolean;
 	};
 
 	/** @internal */
@@ -55,13 +56,14 @@ export class Subquery<
 		return this._.selectedFields as Record<string, unknown>;
 	}
 
-	constructor(sql: SQL, fields: TSelectedFields, alias: string, isWith = false) {
+	constructor(sql: SQL, fields: TSelectedFields, alias: string, isWith = false, isRecursive = false) {
 		this._ = {
 			brand: 'Subquery',
 			sql,
 			selectedFields: fields as TSelectedFields,
 			alias: alias as TAlias,
 			isWith,
+			isRecursive,
 		};
 	}
 

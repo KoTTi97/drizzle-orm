@@ -134,7 +134,9 @@ export class MySqlDialect {
 		const queriesLen = queries.length;
 		const withSqlChunks: SQLChunk[] = new Array(queriesLen + 1);
 		let writeIdx = 0;
-		withSqlChunks[writeIdx++] = commonStringChunks['with '];
+		withSqlChunks[writeIdx++] = queries.some((query) => query._.isRecursive)
+			? new StringChunk('with recursive ')
+			: commonStringChunks['with '];
 
 		for (let i = 0; i < queriesLen; ++i) {
 			const w = queries[i]!;

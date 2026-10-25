@@ -2,11 +2,12 @@ import { entityKind, is } from '~/entity.ts';
 import type { PgDialectConfig } from '~/pg-core/dialect.ts';
 import { PgDialect } from '~/pg-core/dialect.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
+import { getRecursiveSelection } from '~/query-builders/with-recursive.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
-import type { ColumnsSelection, SQL, SQLWrapper } from '~/sql/sql.ts';
+import { type ColumnsSelection, SQL, type SQLWrapper } from '~/sql/sql.ts';
 import { WithSubquery } from '~/subquery.ts';
 import type { PgColumn } from '../columns/index.ts';
-import type { WithBuilder } from '../subquery.ts';
+import type { WithBuilder, WithRecursiveBuilder } from '../subquery.ts';
 import { PgSelectBuilder } from './select.ts';
 import type { SelectedFields } from './select.types.ts';
 
@@ -42,6 +43,54 @@ export class QueryBuilder {
 					sql,
 					selection ?? ('getSelectedFields' in qb ? qb.getSelectedFields() ?? {} : {}) as SelectedFields,
 					alias,
+					true,
+				),
+				new SelectionProxyHandler({ alias, sqlAliasedBehavior: 'alias', sqlBehavior: 'error' }),
+			) as any;
+		};
+		return { as };
+	};
+
+	/**
+	 * Defines a recursive CTE. Pass an explicit selection to reference the CTE
+	 * in the second argument of the `as` callback, including computed columns.
+	 * Include the result in the main query using `with`.
+	 *
+	 * @example
+	 * ```ts
+	 * const hierarchy = qb.$withRecursive('hierarchy', {
+	 *   id: employees.id,
+	 *   level: sql<number>`0`.as('level'),
+	 * }).as((qb, self) =>
+	 *   qb.select({ id: employees.id, level: sql<number>`0`.as('level') })
+	 *     .from(employees).where(isNull(employees.managerId))
+	 *     .unionAll(qb.select({ id: employees.id, level: sql<number>`${self.level} + 1`.as('level') })
+	 *       .from(employees).innerJoin(self, eq(employees.managerId, self.id)))
+	 * );
+	 * ```
+	 */
+	$withRecursive: WithRecursiveBuilder = (alias: string, selection?: ColumnsSelection) => {
+		const as = (
+			qb:
+				| TypedQueryBuilder<ColumnsSelection | undefined>
+				| SQL
+				| ((qb: QueryBuilder, self: WithSubquery) => TypedQueryBuilder<ColumnsSelection | undefined> | SQL),
+		) => {
+			if (typeof qb === 'function') {
+				const self = new Proxy(
+					new WithSubquery(new SQL([]), selection ?? {}, alias, true, true),
+					new SelectionProxyHandler({ alias, sqlAliasedBehavior: 'alias', sqlBehavior: 'error' }),
+				);
+				qb = qb(this, self);
+			}
+
+			const fields = getRecursiveSelection(qb, selection);
+			return new Proxy(
+				new WithSubquery(
+					qb.getSQL(),
+					fields,
+					alias,
+					true,
 					true,
 				),
 				new SelectionProxyHandler({ alias, sqlAliasedBehavior: 'alias', sqlBehavior: 'error' }),

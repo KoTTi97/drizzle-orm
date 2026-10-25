@@ -25,7 +25,7 @@ import { QueryBuilder } from '../query-builders/query-builder.ts';
 import type { SelectedFields } from '../query-builders/select.types.ts';
 import { PgUpdateBuilder } from '../query-builders/update.ts';
 import type { PgQueryResultHKT, PgQueryResultKind, PgTransactionConfig, PreparedQueryConfig } from '../session.ts';
-import type { WithBuilder } from '../subquery.ts';
+import type { WithBuilder, WithRecursiveBuilder } from '../subquery.ts';
 import type { PgMaterializedView } from '../view.ts';
 import { PgEffectDeleteBase } from './delete.ts';
 import { PgEffectRelationalQuery, type PgEffectRelationalQueryHKT } from './query.ts';
@@ -151,6 +151,15 @@ export class PgEffectDatabase<
 	};
 
 	$cache: { invalidate: EffectCacheShape['onMutate'] };
+
+	/**
+	 * Defines a recursive CTE. With an explicit selection, the `as` callback
+	 * receives a typed self reference as its second argument.
+	 * @see QueryBuilder.$withRecursive
+	 */
+	get $withRecursive(): WithRecursiveBuilder {
+		return new QueryBuilder(this.dialect).$withRecursive;
+	}
 
 	$count(
 		source: PgTable | PgViewBase | SQL | SQLWrapper,
